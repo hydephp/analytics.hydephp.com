@@ -1054,8 +1054,6 @@
                             <g v-for="point in cloudflareSeries" :key="point.date">
                                 <circle :cx="point.x" :cy="point.y" r="3.5" fill="#16110d" stroke="#f0533b"
                                     stroke-width="2" />
-                                <title>{{ formatDate(point.date) }} · {{ formatNumber(point.requests) }} requests
-                                </title>
                             </g>
 
                             <!-- y-axis: what each gridline is worth, in requests -->
@@ -1071,6 +1069,40 @@
                                     font-family="JetBrains Mono, monospace" font-size="11" fill="#7c6f64">{{ tick.label
                                     }}</text>
                             </g>
+
+                            <!-- hover readout: guide line, highlighted dots, value box -->
+                            <g v-if="hoverPoint" style="pointer-events: none;">
+                                <line :x1="hoverPoint.x" y1="14" :x2="hoverPoint.x" y2="220"
+                                    stroke="rgba(245,235,224,0.3)" stroke-width="1" stroke-dasharray="2 4" />
+                                <circle :cx="hoverPoint.x" :cy="hoverUniquesY" r="5" fill="#e0a75a" stroke="#16110d"
+                                    stroke-width="2" />
+                                <circle :cx="hoverPoint.x" :cy="hoverPoint.y" r="5.5" fill="#f0533b" stroke="#16110d"
+                                    stroke-width="2" />
+
+                                <g :transform="`translate(${tooltip.x}, ${tooltip.y})`">
+                                    <rect width="150" height="66" rx="9" fill="#211a15" stroke="rgba(245,235,224,0.18)"
+                                        stroke-width="1" />
+                                    <text x="13" y="21" font-family="DM Sans, sans-serif" font-size="12"
+                                        font-weight="700" fill="#f6efe6">{{ formatDate(hoverPoint.date) }}</text>
+                                    <circle cx="17" cy="36" r="3.5" fill="#f0533b" />
+                                    <text x="27" y="40" font-family="JetBrains Mono, monospace" font-size="10.5"
+                                        fill="#ab9c8e">Requests</text>
+                                    <text x="137" y="40" text-anchor="end" font-family="JetBrains Mono, monospace"
+                                        font-size="11" font-weight="600" fill="#f6efe6">{{
+                                        formatNumber(hoverPoint.requests) }}</text>
+                                    <circle cx="17" cy="52" r="3.5" fill="#e0a75a" />
+                                    <text x="27" y="56" font-family="JetBrains Mono, monospace" font-size="10.5"
+                                        fill="#ab9c8e">Unique</text>
+                                    <text x="137" y="56" text-anchor="end" font-family="JetBrains Mono, monospace"
+                                        font-size="11" font-weight="600" fill="#f6efe6">{{
+                                        formatNumber(hoverPoint.uniques) }}</text>
+                                </g>
+                            </g>
+
+                            <!-- invisible capture layer: hovering anywhere in the plot area updates the readout -->
+                            <rect x="64" y="8" width="684" height="226" fill="transparent"
+                                style="cursor: crosshair; touch-action: none;" @pointermove="handleChartPointer"
+                                @pointerdown="handleChartPointer" @pointerleave="clearChartHover" />
                         </svg>
                         <div v-if="cloudflareSeries.length" class="legend">
                             <span class="legend-item"><span class="legend-swatch"></span>Requests / day</span>
@@ -1266,6 +1298,7 @@
                     error: '',
                     payload: null,
                     activeReferralRepository: '',
+                    hoverIndex: null,
                 };
             },
             computed: {
@@ -1420,6 +1453,41 @@
                             anchor,
                         }));
                 },
+                hoverPoint() {
+                    if (this.hoverIndex === null) {
+                        return null;
+                    }
+
+                    return this.cloudflareSeries[this.hoverIndex] || null;
+                },
+                hoverUniquesY() {
+                    if (!this.hoverPoint) {
+                        return null;
+                    }
+
+                    return this.valueY(this.hoverPoint.uniques);
+                },
+                tooltip() {
+                    if (!this.hoverPoint) {
+                        return null;
+                    }
+
+                    const width = 150;
+                    const height = 66;
+
+                    let x = this.hoverPoint.x - width / 2;
+                    x = Math.min(Math.max(x, 8), 800 - width - 8);
+
+                    const topMost = Math.min(this.hoverPoint.y, this.hoverUniquesY);
+                    const bottomMost = Math.max(this.hoverPoint.y, this.hoverUniquesY);
+
+                    let y = topMost - height - 14;
+                    if (y < 8) {
+                        y = bottomMost + 14;
+                    }
+
+                    return { x, y };
+                },
                 metrics() {
                     return [
                         {
@@ -1560,6 +1628,50 @@
                         month: 'short',
                         day: 'numeric',
                     });
+                },
+                valueY(value) {
+                    return 220 - ((Number(value) || 0) / this.cloudflareMax) * 170;
+                },
+                handleChartPointer(event) {
+                    const points = this.cloudflareSeries;
+
+                    if (!points.length) {
+                        return;
+                    }
+
+                    const svg = event.currentTarget.ownerSVGElement || event.currentTarget.closest('svg');
+
+                    if (!svg || typeof svg.createSVGPoint !== 'function') {
+                        return;
+                    }
+
+                    const ctm = svg.getScreenCTM();
+
+                    if (!ctm) {
+                        return;
+                    }
+
+                    const cursor = svg.createSVGPoint();
+                    cursor.x = event.clientX;
+                    cursor.y = event.clientY;
+
+                    const local = cursor.matrixTransform(ctm.inverse());
+
+                    let nearestIndex = 0;
+                    let nearestDistance = Infinity;
+
+                    points.forEach((point, index) => {
+                        const distance = Math.abs(point.x - local.x);
+                        if (distance < nearestDistance) {
+                            nearestDistance = distance;
+                            nearestIndex = index;
+                        }
+                    });
+
+                    this.hoverIndex = nearestIndex;
+                },
+                clearChartHover() {
+                    this.hoverIndex = null;
                 },
             },
         }).mount('#app');
