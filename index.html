@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HydePHP Analytics</title>
+    <meta name="description" content="Public HydePHP analytics dashboard powered by the HydePHP CI service API.">
+    <link rel="icon" href="public/favicon.ico">
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f4f6f9;
+            --panel: #ffffff;
+            --panel-muted: #f7f9fc;
+            --text: #17212f;
+            --muted: #657386;
+            --line: #d8e0ea;
+            --line-strong: #c3cedb;
+            --red: #f43835;
+            --green: #12865a;
+            --blue: #2166ad;
+            --amber: #9a6700;
+            --shadow: 0 10px 24px rgb(24 34 48 / 7%);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-width: 320px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            letter-spacing: 0;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        a {
+            color: inherit;
+        }
+
+        [v-cloak] {
+            display: none;
+        }
+
+        .shell {
+            width: min(1280px, calc(100vw - 32px));
+            margin: 0 auto;
+            padding: 24px 0 40px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .mark {
+            display: grid;
+            width: 38px;
+            height: 38px;
+            place-items: center;
+            border-radius: 8px;
+            background: var(--red);
+            color: white;
+            font-weight: 800;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.45rem, 2.5vw, 2.15rem);
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: .95rem;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 36px;
+            padding: 0 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--muted);
+            font-size: .88rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--amber);
+        }
+
+        .status-dot.ok {
+            background: var(--green);
+        }
+
+        .icon-button {
+            display: grid;
+            width: 38px;
+            height: 38px;
+            place-items: center;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .icon-button:hover {
+            border-color: #aeb9c7;
+        }
+
+        .grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .metrics {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 14px;
+        }
+
+        .metric,
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+        }
+
+        .metric {
+            min-height: 118px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .label {
+            color: var(--muted);
+            font-size: .75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .value {
+            margin-top: 10px;
+            font-size: clamp(1.55rem, 2.5vw, 2.05rem);
+            line-height: 1;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
+
+        .detail {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: .84rem;
+        }
+
+        .up {
+            color: var(--green);
+        }
+
+        .down {
+            color: #b42318;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 360px;
+            grid-template-areas:
+                "chart side"
+                "traffic side";
+            gap: 14px;
+            align-items: start;
+        }
+
+        .panel {
+            overflow: hidden;
+        }
+
+        .chart-panel {
+            grid-area: chart;
+        }
+
+        .side-panel {
+            grid-area: side;
+            display: grid;
+            gap: 14px;
+            align-self: stretch;
+            align-content: start;
+        }
+
+        .traffic-panel {
+            grid-area: traffic;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 16px 0;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .panel-body {
+            padding: 16px;
+        }
+
+        .chart {
+            width: 100%;
+            height: 300px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: linear-gradient(180deg, #ffffff 0%, #f6f8fb 100%);
+        }
+
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: .84rem;
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .legend-swatch {
+            width: 18px;
+            height: 3px;
+            border-radius: 999px;
+            background: var(--blue);
+        }
+
+        .legend-swatch.red {
+            background: var(--red);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        .traffic-summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .traffic-card {
+            display: grid;
+            gap: 14px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel-muted);
+        }
+
+        .traffic-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .traffic-repo {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .traffic-repo strong {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .traffic-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .traffic-metric {
+            padding: 10px;
+            border: 1px solid #dce5ef;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .traffic-metric-value {
+            margin-top: 6px;
+            font-size: 1.35rem;
+            line-height: 1;
+            font-weight: 800;
+        }
+
+        .traffic-bars {
+            display: grid;
+            gap: 8px;
+        }
+
+        .traffic-bar {
+            display: grid;
+            grid-template-columns: 54px minmax(0, 1fr) 56px;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            font-size: .78rem;
+        }
+
+        .traffic-bar-track {
+            height: 7px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: #e4eaf1;
+        }
+
+        .traffic-bar-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: var(--blue);
+        }
+
+        .traffic-bar-fill.red {
+            background: var(--red);
+        }
+
+        table {
+            width: 100%;
+            min-width: 650px;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+
+        th,
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        th {
+            color: var(--muted);
+            font-size: .78rem;
+            text-transform: uppercase;
+        }
+
+        tr:last-child td {
+            border-bottom: 0;
+        }
+
+        .compact-table {
+            min-width: 760px;
+        }
+
+        .stack {
+            display: grid;
+            gap: 14px;
+        }
+
+        .list {
+            display: grid;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 11px 12px;
+            border: 1px solid #dce5ef;
+            border-radius: 8px;
+            background: var(--panel-muted);
+        }
+
+        .list-copy {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .list-copy strong,
+        .list-copy span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pill {
+            flex: 0 0 auto;
+            padding: 4px 8px;
+            border: 1px solid var(--line-strong);
+            border-radius: 999px;
+            color: var(--muted);
+            font-size: .76rem;
+            font-weight: 700;
+        }
+
+        .segmented {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        .segment {
+            flex: 0 0 auto;
+            min-height: 32px;
+            padding: 0 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: .78rem;
+            font-weight: 700;
+        }
+
+        .segment.active {
+            border-color: var(--blue);
+            background: #eff6ff;
+            color: var(--blue);
+        }
+
+        .referral-grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .mini-table {
+            width: 100%;
+            min-width: 0;
+            font-size: .84rem;
+        }
+
+        .mini-table th,
+        .mini-table td {
+            padding: 8px 0;
+            vertical-align: top;
+        }
+
+        .mini-table th:not(:first-child),
+        .mini-table td:not(:first-child) {
+            padding-left: 12px;
+            text-align: right;
+        }
+
+        .truncate-cell {
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: .88rem;
+        }
+
+        .empty,
+        .error {
+            display: grid;
+            place-items: center;
+            min-height: 180px;
+            padding: 22px;
+            border: 1px dashed var(--line);
+            border-radius: 8px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .error {
+            border-color: #f3b7b5;
+            color: #9f1d1a;
+            background: #fff5f5;
+        }
+
+        .preview {
+            width: 100%;
+            aspect-ratio: 5 / 1.4;
+            object-fit: cover;
+            object-position: left center;
+            display: block;
+            border-top: 1px solid var(--line);
+        }
+
+        @media (max-width: 980px) {
+            .metrics {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "chart"
+                    "side"
+                    "traffic";
+            }
+
+            .side-panel {
+                grid-template-columns: 1fr 1fr;
+                align-self: auto;
+            }
+
+            .side-panel .panel {
+                min-width: 0;
+            }
+
+            .traffic-summary {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .shell {
+                width: min(100vw - 24px, 1180px);
+                padding-top: 18px;
+            }
+
+            .topbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .metrics,
+            .side-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .metric {
+                min-height: 108px;
+            }
+
+            .chart {
+                height: 230px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="shell" v-cloak>
+        <header class="topbar">
+            <div class="brand">
+                <div class="mark">H</div>
+                <div>
+                    <h1>HydePHP Analytics</h1>
+                    <p class="subtitle">Public metrics served by the CI API.</p>
+                </div>
+            </div>
+            <div class="actions">
+                <span class="status" :title="apiUrl">
+                    <span class="status-dot" :class="{ ok: !loading && !error }"></span>
+                    <span>{{ statusText }}</span>
+                </span>
+                <button class="icon-button" type="button" title="Refresh" @click="load">
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M18 3v4h4M6 21v-4H2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main v-if="error" class="error">
+            <div>
+                <strong>Could not load analytics.</strong>
+                <div>{{ error }}</div>
+            </div>
+        </main>
+
+        <main v-else>
+            <section class="grid metrics">
+                <article class="metric" v-for="metric in metrics" :key="metric.label">
+                    <div class="label">{{ metric.label }}</div>
+                    <div>
+                        <div class="value">{{ metric.value }}</div>
+                        <div class="detail" :class="metric.trendClass">{{ metric.detail }}</div>
+                    </div>
+                </article>
+            </section>
+
+            <section class="dashboard-grid">
+                <article class="panel chart-panel">
+                    <div class="panel-header">
+                        <h2>Cloudflare Requests</h2>
+                        <span class="detail">Last {{ cloudflareSeries.length }} records</span>
+                    </div>
+                    <div class="panel-body">
+                        <svg v-if="cloudflareSeries.length" class="chart" viewBox="0 0 800 260" role="img" aria-label="Cloudflare request trend">
+                            <line v-for="y in [40, 95, 150, 205]" :key="y" x1="36" :y1="y" x2="770" :y2="y" stroke="#d8e0ea" stroke-width="1"/>
+                            <polyline :points="chartPoints(cloudflareSeries, 'requests')" fill="none" stroke="#2166ad" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                            <polyline :points="chartPoints(cloudflareSeries, 'uniques')" fill="none" stroke="#f43835" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                            <g v-for="point in cloudflareSeries" :key="point.date">
+                                <circle :cx="point.x" :cy="point.y" r="4" fill="#2166ad"/>
+                            </g>
+                        </svg>
+                        <div v-if="cloudflareSeries.length" class="legend">
+                            <span class="legend-item"><span class="legend-swatch"></span>Requests</span>
+                            <span class="legend-item"><span class="legend-swatch red"></span>Unique visitors</span>
+                        </div>
+                        <div v-else class="empty">Cloudflare data will appear after the CI API can read the imported analytics database.</div>
+                    </div>
+                </article>
+
+                <aside class="side-panel">
+                    <article class="panel">
+                        <div class="panel-header">
+                            <h2>Latest Test Runs</h2>
+                        </div>
+                        <div class="panel-body">
+                            <ul v-if="testRuns.length" class="list">
+                                <li class="list-item" v-for="run in testRuns.slice(0, 5)" :key="run.id">
+                                    <span class="list-copy">
+                                        <strong>{{ formatNumber(run.tests) }} tests</strong>
+                                        <span class="detail mono">{{ run.branch || 'unknown branch' }} · {{ shortSha(run.commit) }}</span>
+                                    </span>
+                                    <span class="pill">{{ formatDate(run.timestamp) }}</span>
+                                </li>
+                            </ul>
+                            <div v-else class="empty">No test runs returned yet.</div>
+                        </div>
+                    </article>
+
+                    <article class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <h2>GitHub Referrals</h2>
+                                <div class="detail">{{ activeReferral?.repository || 'Latest traffic sources' }}</div>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div v-if="referrals.length" class="referral-grid">
+                                <div class="segmented" role="tablist" aria-label="Repository referrals">
+                                    <button
+                                        class="segment"
+                                        :class="{ active: activeReferralRepository === sync.repository }"
+                                        type="button"
+                                        v-for="sync in referrals"
+                                        :key="sync.id"
+                                        @click="activeReferralRepository = sync.repository"
+                                    >
+                                        {{ shortRepository(sync.repository) }}
+                                    </button>
+                                </div>
+
+                                <div>
+                                    <h3 class="label">Top Sources</h3>
+                                    <table v-if="topReferralSources.length" class="mini-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Source</th>
+                                                <th>Views</th>
+                                                <th>Unique</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="source in topReferralSources" :key="source.referrer">
+                                                <td class="truncate-cell" :title="source.referrer">{{ source.referrer }}</td>
+                                                <td>{{ formatNumber(source.count) }}</td>
+                                                <td>{{ formatNumber(source.uniques) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <div v-else class="empty">No referral sources for this repository.</div>
+                                </div>
+
+                                <div>
+                                    <h3 class="label">Popular Content</h3>
+                                    <table v-if="topReferralPaths.length" class="mini-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Path</th>
+                                                <th>Views</th>
+                                                <th>Unique</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="path in topReferralPaths" :key="path.path">
+                                                <td class="truncate-cell" :title="path.title || path.path">{{ path.path }}</td>
+                                                <td>{{ formatNumber(path.count) }}</td>
+                                                <td>{{ formatNumber(path.uniques) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <div v-else class="empty">No popular paths for this repository.</div>
+                                </div>
+                            </div>
+                            <div v-else class="empty">No referral snapshots returned yet.</div>
+                        </div>
+                        <img class="preview" src="public/aff04.png" alt="Analytics dashboard preview" loading="lazy">
+                    </article>
+                </aside>
+
+                <article class="panel traffic-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h2>GitHub Repository Traffic</h2>
+                            <div class="detail">Recent synced views and clones by repository</div>
+                        </div>
+                        <a class="detail" href="https://ci.hydephp.com/api/github_repository_traffic">JSON</a>
+                    </div>
+                    <div class="panel-body">
+                        <div v-if="trafficSummaries.length" class="traffic-summary">
+                            <article class="traffic-card" v-for="repo in trafficSummaries" :key="repo.repository">
+                                <div class="traffic-card-head">
+                                    <span class="traffic-repo">
+                                        <strong>{{ repo.repository }}</strong>
+                                        <span class="detail">{{ repo.days }} recent days in this view</span>
+                                    </span>
+                                    <span class="pill">{{ formatNumber(repo.total) }} total</span>
+                                </div>
+                                <div class="traffic-metrics">
+                                    <div class="traffic-metric">
+                                        <div class="label">Views</div>
+                                        <div class="traffic-metric-value">{{ formatNumber(repo.views.count) }}</div>
+                                        <div class="detail">{{ formatNumber(repo.views.uniques) }} unique</div>
+                                    </div>
+                                    <div class="traffic-metric">
+                                        <div class="label">Clones</div>
+                                        <div class="traffic-metric-value">{{ formatNumber(repo.clones.count) }}</div>
+                                        <div class="detail">{{ formatNumber(repo.clones.uniques) }} unique</div>
+                                    </div>
+                                </div>
+                                <div class="traffic-bars">
+                                    <div class="traffic-bar">
+                                        <span>Views</span>
+                                        <span class="traffic-bar-track">
+                                            <span class="traffic-bar-fill" :style="{ width: trafficBarWidth(repo.views.count) }"></span>
+                                        </span>
+                                        <span>{{ formatNumber(repo.views.count) }}</span>
+                                    </div>
+                                    <div class="traffic-bar">
+                                        <span>Clones</span>
+                                        <span class="traffic-bar-track">
+                                            <span class="traffic-bar-fill red" :style="{ width: trafficBarWidth(repo.clones.count) }"></span>
+                                        </span>
+                                        <span>{{ formatNumber(repo.clones.count) }}</span>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div v-if="trafficDays.length" class="table-wrap">
+                            <table class="compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Repository</th>
+                                        <th>Views</th>
+                                        <th>Unique Views</th>
+                                        <th>Clones</th>
+                                        <th>Unique Clones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in trafficDays" :key="row.key">
+                                        <td>{{ formatDate(row.date) }}</td>
+                                        <td class="mono">{{ row.repository }}</td>
+                                        <td>{{ formatNumber(row.views.count) }}</td>
+                                        <td>{{ formatNumber(row.views.uniques) }}</td>
+                                        <td>{{ formatNumber(row.clones.count) }}</td>
+                                        <td>{{ formatNumber(row.clones.uniques) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="empty">No GitHub traffic returned yet.</div>
+                    </div>
+                </article>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const apiUrl = params.get('api') || 'https://ci.hydephp.com/api/analytics';
+
+        Vue.createApp({
+            data() {
+                return {
+                    apiUrl,
+                    loading: true,
+                    error: '',
+                    payload: null,
+                    activeReferralRepository: '',
+                };
+            },
+            computed: {
+                statusText() {
+                    if (this.loading) {
+                        return 'Loading';
+                    }
+
+                    return this.error ? 'API unavailable' : 'Live from CI';
+                },
+                summary() {
+                    return this.payload?.summary || {};
+                },
+                trends() {
+                    return this.payload?.trends || {};
+                },
+                latest() {
+                    return this.payload?.latest || {};
+                },
+                testRuns() {
+                    return this.asArray(this.latest.testRuns);
+                },
+                githubTraffic() {
+                    return this.asArray(this.latest.githubTraffic);
+                },
+                referrals() {
+                    return this.asArray(this.latest.githubReferrals);
+                },
+                activeReferral() {
+                    if (!this.referrals.length) {
+                        return null;
+                    }
+
+                    return this.referrals.find((sync) => sync.repository === this.activeReferralRepository)
+                        || this.referrals[0];
+                },
+                topReferralSources() {
+                    return this.asArray(this.activeReferral?.sources)
+                        .sort((a, b) => Number(b.count || 0) - Number(a.count || 0))
+                        .slice(0, 5);
+                },
+                topReferralPaths() {
+                    return this.asArray(this.activeReferral?.paths)
+                        .sort((a, b) => Number(b.count || 0) - Number(a.count || 0))
+                        .slice(0, 5);
+                },
+                trafficSummaries() {
+                    const repositories = new Map();
+
+                    for (const event of this.githubTraffic) {
+                        const repository = event.repository || 'unknown';
+                        const metric = event.metric === 'clones' ? 'clones' : 'views';
+
+                        if (!repositories.has(repository)) {
+                            repositories.set(repository, {
+                                repository,
+                                views: { count: 0, uniques: 0 },
+                                clones: { count: 0, uniques: 0 },
+                                dates: new Set(),
+                            });
+                        }
+
+                        const summary = repositories.get(repository);
+                        summary[metric].count += Number(event.count || 0);
+                        summary[metric].uniques += Number(event.uniques || 0);
+                        summary.dates.add(String(event.timestamp || '').slice(0, 10));
+                    }
+
+                    return [...repositories.values()]
+                        .map((summary) => ({
+                            ...summary,
+                            total: summary.views.count + summary.clones.count,
+                            days: summary.dates.size,
+                        }))
+                        .sort((a, b) => b.total - a.total);
+                },
+                trafficMax() {
+                    return Math.max(
+                        ...this.trafficSummaries.flatMap((summary) => [
+                            summary.views.count,
+                            summary.clones.count,
+                        ]),
+                        1,
+                    );
+                },
+                trafficDays() {
+                    const rows = new Map();
+
+                    for (const event of this.githubTraffic) {
+                        const date = String(event.timestamp || '').slice(0, 10);
+                        const repository = event.repository || 'unknown';
+                        const metric = event.metric === 'clones' ? 'clones' : 'views';
+                        const key = `${date}:${repository}`;
+
+                        if (!rows.has(key)) {
+                            rows.set(key, {
+                                key,
+                                date,
+                                repository,
+                                views: { count: 0, uniques: 0 },
+                                clones: { count: 0, uniques: 0 },
+                            });
+                        }
+
+                        const row = rows.get(key);
+                        row[metric].count += Number(event.count || 0);
+                        row[metric].uniques += Number(event.uniques || 0);
+                    }
+
+                    return [...rows.values()]
+                        .sort((a, b) => b.date.localeCompare(a.date) || a.repository.localeCompare(b.repository))
+                        .slice(0, 12);
+                },
+                cloudflareSeries() {
+                    const records = this.asArray(this.latest.cloudflare).reverse();
+                    const max = Math.max(...records.map((record) => record.requests || 0), 1);
+
+                    return records.map((record, index) => {
+                        const x = 48 + (records.length <= 1 ? 0 : index * (700 / (records.length - 1)));
+                        const y = 220 - ((record.requests || 0) / max) * 170;
+
+                        return { ...record, x, y };
+                    });
+                },
+                metrics() {
+                    return [
+                        {
+                            label: 'Package Installs',
+                            value: this.formatNumber(this.summary.packagistInstalls),
+                            detail: 'hyde/framework total',
+                        },
+                        {
+                            label: 'GitHub Views',
+                            value: this.formatNumber(this.summary.githubViews),
+                            detail: this.trendText(this.trends.githubViews),
+                            trendClass: this.trendClass(this.trends.githubViews),
+                        },
+                        {
+                            label: 'GitHub Clones',
+                            value: this.formatNumber(this.summary.githubClones),
+                            detail: this.trendText(this.trends.githubClones),
+                            trendClass: this.trendClass(this.trends.githubClones),
+                        },
+                        {
+                            label: 'Tests Run',
+                            value: this.formatNumber(this.summary.tests),
+                            detail: `${this.formatNumber(this.summary.testRuns)} CI runs tracked`,
+                        },
+                    ];
+                },
+            },
+            mounted() {
+                this.load();
+            },
+            methods: {
+                async load() {
+                    this.loading = true;
+                    this.error = '';
+
+                    try {
+                        const response = await fetch(this.apiUrl, { headers: { Accept: 'application/json' } });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+
+                        const json = await response.json();
+                        this.payload = json.data;
+                        this.activeReferralRepository = this.referrals[0]?.repository || '';
+                    } catch (error) {
+                        this.error = error.message || String(error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                asArray(value) {
+                    if (Array.isArray(value)) {
+                        return [...value];
+                    }
+
+                    if (value && typeof value === 'object') {
+                        return Object.values(value);
+                    }
+
+                    return [];
+                },
+                formatNumber(value) {
+                    return Number(value || 0).toLocaleString();
+                },
+                formatDate(value) {
+                    if (!value) {
+                        return 'Unknown';
+                    }
+
+                    return new Date(value).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                    });
+                },
+                shortSha(value) {
+                    return value ? value.slice(0, 7) : 'unknown commit';
+                },
+                shortRepository(value) {
+                    return String(value || '').replace(/^hydephp\//, '');
+                },
+                trafficBarWidth(value) {
+                    return `${Math.max(2, Math.round((Number(value || 0) / this.trafficMax) * 100))}%`;
+                },
+                trendText(trend) {
+                    if (!trend) {
+                        return 'No trend data yet';
+                    }
+
+                    const sign = trend.percent > 0 ? '+' : '';
+                    return `${sign}${trend.percent}% vs previous week`;
+                },
+                trendClass(trend) {
+                    if (!trend || trend.percent === 0) {
+                        return '';
+                    }
+
+                    return trend.percent > 0 ? 'up' : 'down';
+                },
+                chartPoints(records, key) {
+                    if (!records.length) {
+                        return '';
+                    }
+
+                    const max = Math.max(...records.map((record) => record.requests || 0), 1);
+
+                    return records.map((record, index) => {
+                        const x = 48 + (records.length <= 1 ? 0 : index * (700 / (records.length - 1)));
+                        const y = 220 - ((record[key] || 0) / max) * 170;
+
+                        return `${x},${y}`;
+                    }).join(' ');
+                },
+            },
+        }).mount('#app');
+    </script>
+</body>
+</html>
