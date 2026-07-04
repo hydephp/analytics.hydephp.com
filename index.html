@@ -418,7 +418,7 @@
         /* ---------- chart ---------- */
         .chart {
             width: 100%;
-            height: 300px;
+            height: 320px;
             display: block;
         }
 
@@ -1024,20 +1024,27 @@
                         <span class="eyebrow">Traffic to hydephp.com edge</span>
                         <h2>Cloudflare requests</h2>
                     </div>
-                    <span class="note" v-if="cloudflareSeries.length">Last {{ cloudflareSeries.length }} records</span>
+                    <span class="note" v-if="cloudflareSeries.length">Peak {{ formatNumber(cloudflareMax) }}
+                        requests/day · {{ cloudflareSeries.length }} days shown</span>
                 </div>
                 <div class="card">
                     <div class="panel-body">
-                        <svg v-if="cloudflareSeries.length" class="chart" viewBox="0 0 800 260"
-                            preserveAspectRatio="xMidYMid meet" role="img" aria-label="Cloudflare request trend">
+                        <svg v-if="cloudflareSeries.length" class="chart" viewBox="0 0 800 288"
+                            preserveAspectRatio="xMidYMid meet" role="img"
+                            aria-label="Cloudflare request trend, requests per day over time">
                             <defs>
                                 <linearGradient id="emberArea" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stop-color="#f0533b" stop-opacity="0.28" />
                                     <stop offset="100%" stop-color="#f0533b" stop-opacity="0" />
                                 </linearGradient>
                             </defs>
-                            <line v-for="y in [50, 107, 164, 220]" :key="y" x1="48" :y1="y" x2="748" :y2="y"
-                                stroke="rgba(245,235,224,0.07)" stroke-width="1" />
+
+                            <!-- horizontal gridlines, one per axis tick -->
+                            <line v-for="tick in cloudflareAxisTicks" :key="'grid-' + tick.y" x1="64" :y1="tick.y"
+                                x2="748" :y2="tick.y" stroke="rgba(245,235,224,0.07)" stroke-width="1" />
+                            <!-- baseline drawn a touch stronger so 0 reads clearly -->
+                            <line x1="64" y1="220" x2="748" y2="220" stroke="rgba(245,235,224,0.16)" stroke-width="1" />
+
                             <polygon :points="areaPoints(cloudflareSeries, 'requests')" fill="url(#emberArea)" />
                             <polyline :points="chartPoints(cloudflareSeries, 'requests')" fill="none" stroke="#f0533b"
                                 stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
@@ -1047,11 +1054,28 @@
                             <g v-for="point in cloudflareSeries" :key="point.date">
                                 <circle :cx="point.x" :cy="point.y" r="3.5" fill="#16110d" stroke="#f0533b"
                                     stroke-width="2" />
+                                <title>{{ formatDate(point.date) }} · {{ formatNumber(point.requests) }} requests
+                                </title>
+                            </g>
+
+                            <!-- y-axis: what each gridline is worth, in requests -->
+                            <text v-for="tick in cloudflareAxisTicks" :key="'ylabel-' + tick.y" x="56" :y="tick.y + 4"
+                                text-anchor="end" font-family="JetBrains Mono, monospace" font-size="11"
+                                fill="#7c6f64">{{ tick.value }}</text>
+
+                            <!-- x-axis: which days the line covers -->
+                            <g v-for="tick in cloudflareXTicks" :key="'xtick-' + tick.x">
+                                <line :x1="tick.x" y1="220" :x2="tick.x" y2="226" stroke="rgba(245,235,224,0.16)"
+                                    stroke-width="1" />
+                                <text :x="tick.x" y="242" :text-anchor="tick.anchor"
+                                    font-family="JetBrains Mono, monospace" font-size="11" fill="#7c6f64">{{ tick.label
+                                    }}</text>
                             </g>
                         </svg>
                         <div v-if="cloudflareSeries.length" class="legend">
-                            <span class="legend-item"><span class="legend-swatch"></span>Requests</span>
-                            <span class="legend-item"><span class="legend-swatch gold"></span>Unique visitors</span>
+                            <span class="legend-item"><span class="legend-swatch"></span>Requests / day</span>
+                            <span class="legend-item"><span class="legend-swatch gold"></span>Unique visitors /
+                                day</span>
                         </div>
                         <div v-else class="empty">Cloudflare data appears once the CI API can read the imported
                             analytics database.</div>
@@ -1334,16 +1358,67 @@
                         1,
                     );
                 },
+                cloudflareMax() {
+                    const records = this.asArray(this.latest.cloudflare);
+                    return Math.max(...records.map((record) => record.requests || 0), 1);
+                },
                 cloudflareSeries() {
                     const records = this.asArray(this.latest.cloudflare).reverse();
-                    const max = Math.max(...records.map((record) => record.requests || 0), 1);
+                    const max = this.cloudflareMax;
 
                     return records.map((record, index) => {
-                        const x = 48 + (records.length <= 1 ? 0 : index * (700 / (records.length - 1)));
+                        const x = 64 + (records.length <= 1 ? 0 : index * (684 / (records.length - 1)));
                         const y = 220 - ((record.requests || 0) / max) * 170;
 
                         return { ...record, x, y };
                     });
+                },
+                cloudflareAxisTicks() {
+                    const max = this.cloudflareMax;
+
+                    return [1, 0.75, 0.5, 0.25, 0].map((fraction) => ({
+                        y: 220 - fraction * 170,
+                        value: this.formatNumber(Math.round(max * fraction)),
+                    }));
+                },
+                cloudflareXTicks() {
+                    const points = this.cloudflareSeries;
+
+                    if (!points.length) {
+                        return [];
+                    }
+
+                    if (points.length < 3) {
+                        return points.map((point, index) => ({
+                            x: point.x,
+                            label: this.shortDate(point.date),
+                            anchor: index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle',
+                        }));
+                    }
+
+                    const first = points[0];
+                    const mid = points[Math.floor((points.length - 1) / 2)];
+                    const last = points[points.length - 1];
+                    const picked = [
+                        { point: first, anchor: 'start' },
+                        { point: mid, anchor: 'middle' },
+                        { point: last, anchor: 'end' },
+                    ];
+
+                    const seen = new Set();
+                    return picked
+                        .filter(({ point }) => {
+                            if (seen.has(point.x)) {
+                                return false;
+                            }
+                            seen.add(point.x);
+                            return true;
+                        })
+                        .map(({ point, anchor }) => ({
+                            x: point.x,
+                            label: this.shortDate(point.date),
+                            anchor,
+                        }));
                 },
                 metrics() {
                     return [
@@ -1456,10 +1531,10 @@
                         return '';
                     }
 
-                    const max = Math.max(...records.map((record) => record.requests || 0), 1);
+                    const max = this.cloudflareMax;
 
                     return records.map((record, index) => {
-                        const x = 48 + (records.length <= 1 ? 0 : index * (700 / (records.length - 1)));
+                        const x = 64 + (records.length <= 1 ? 0 : index * (684 / (records.length - 1)));
                         const y = 220 - ((record[key] || 0) / max) * 170;
 
                         return `${x},${y}`;
@@ -1472,9 +1547,19 @@
                         return '';
                     }
 
-                    const xEnd = 48 + (records.length <= 1 ? 0 : 700);
+                    const xEnd = 64 + (records.length <= 1 ? 0 : 684);
 
-                    return `48,220 ${line} ${xEnd},220`;
+                    return `64,220 ${line} ${xEnd},220`;
+                },
+                shortDate(value) {
+                    if (!value) {
+                        return '';
+                    }
+
+                    return new Date(value).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                    });
                 },
             },
         }).mount('#app');
